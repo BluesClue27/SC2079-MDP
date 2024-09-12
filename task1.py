@@ -372,9 +372,13 @@ class RaspberryPi:
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id}")
         self.android_queue.put(AndroidMessage(
             "info", f"Capturing image for obstacle id: {obstacle_id}"))
+        # Use same API_ID and API_Port as 
+        # algorithm API?
+        #
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
 
+        # Camera settings 
         con_file = "PiLCConfig9.txt"
         Home_Files = []
         Home_Files.append(os.getlogin())
@@ -446,6 +450,7 @@ class RaspberryPi:
             rpistr += " --denoise " + denoises[denoise]
             rpistr += " --metadata - --metadata-format txt >> PiLibtext.txt"
 
+            # After all the camera settings are done, os.system() is executed to capture the image 
             os.system(rpistr)
 
             self.logger.debug("Requesting from image API")
