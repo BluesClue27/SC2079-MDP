@@ -68,10 +68,8 @@ class RaspberryPi:
         """Starts the RPi orchestrator"""
         try:
             ### Start up initialization ###
-
             self.stm_link.connect()
      
-
             # Define child processes
             self.proc_recv_stm32 = Process(target=self.recv_stm)
             self.proc_command_follower = Process(target=self.command_follower)
@@ -146,16 +144,20 @@ class RaspberryPi:
         print("Enter manual commands for the STM32. Type 'exit' to stop.")
         while True:
             command = input("Command: ")
+            """
+            ### Sample commands 
+            Turning radius is 3x1
+            - 'FW80': Move forward 8 units (80cm)
+            - 'bW80': Move backward 8 units (80cm)
+            - 'FL00': Move to the forward-left location 
+            - 'FR00': Move to the forward-right location
+            - 'BL00': Move to the backward-left location 
+            - 'BR00': Move to the backward-right location  
+            """
             if command.lower() == 'exit':
                 self.stop()
                 break
             self.command_queue.put(command)
-
-    def print_current_location(self):
-        """
-        Helper function to print the current location of the robot
-        """
-
 
 if __name__ == "__main__":
     rpi = RaspberryPi()
