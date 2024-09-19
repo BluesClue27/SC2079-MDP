@@ -114,12 +114,16 @@ class RaspberryPi:
                     self.logger.info(
                         f"self.current_location = {self.current_location}")
                   
-                except Exception:
+                except Exception as e:
                     #self.logger.warning("Tried to release a released lock!")
                     self.logger.error(e)
+                    if self.movement_lock.locked():
+                        self.movement_lock.release()
+
             else:
                 self.logger.warning(
                     f"Ignored unknown message from STM: {message}")
+                
 
     def command_follower(self) -> None:
         """
@@ -144,17 +148,20 @@ class RaspberryPi:
         Allows manual command input into STM32
         """
         print("Enter manual commands for the STM32. Type 'exit' to stop.")
-        while True:
+        command ='RS00'
+
+        while command.lower() != 'exit':
             command = input("Command: ")
             """
             ### Sample commands 
             Turning radius is 3x1
-            - 'FW80': Move forward 8 units (80cm)
-            - 'bW80': Move backward 8 units (80cm)
-            - 'FL00': Move to the forward-left location 
+            - 'FWx0': Move forward x units (x0cm)
+            - 'BWx0': Move backward x units (x0cm)
+            - 'FL90': Move to the forward-left location 
             - 'FR00': Move to the forward-right location
             - 'BL00': Move to the backward-left location 
             - 'BR00': Move to the backward-right location  
+            ['FW40', 'FR90', 'FR30'] etc
             """
             if command.lower() == 'exit':
                 self.stop()
