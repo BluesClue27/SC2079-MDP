@@ -505,7 +505,7 @@ class RaspberryPi:
         """
         print("hello")
         # Check image recognition API
-        url = f"http://{API_IP}:{API_PORT}/status"
+        url = f"http://{API_IP}:{API_PORT}/"
         try:
             print('hi')
             response = requests.get(url, timeout=1)

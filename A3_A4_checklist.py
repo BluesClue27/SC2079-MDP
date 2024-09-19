@@ -46,6 +46,7 @@ class RaspberryPi:
 
         self.manager = Manager()
 
+        self.unpause = self.manager.Event()
         self.movement_lock = self.manager.Lock()
 
         # self.rpi_action_queue = self.manager.Queue()
@@ -100,10 +101,6 @@ class RaspberryPi:
 
             message: str = self.stm_link.recv()
             if message.startswith("ACK"):
-                if self.rs_flag == False:
-                    self.rs_flag = True
-                    self.logger.debug("ACK for RS00 from STM32 received.")
-                    continue
                 try:
                     self.movement_lock.release()
                     self.logger.debug(
@@ -113,12 +110,13 @@ class RaspberryPi:
                     print(f"Current Location from path queue {cur_location}")
                     self.current_location['x'] = cur_location['x']
                     self.current_location['y'] = cur_location['y']
-                    self.current_location['d'] = cur_location['d']
+                    self.current_location['d'] = cur_location['direction']
                     self.logger.info(
                         f"self.current_location = {self.current_location}")
                   
                 except Exception:
-                    self.logger.warning("Tried to release a released lock!")
+                    #self.logger.warning("Tried to release a released lock!")
+                    self.logger.error(e)
             else:
                 self.logger.warning(
                     f"Ignored unknown message from STM: {message}")
@@ -128,7 +126,10 @@ class RaspberryPi:
         [Child Process] 
         """
         while True:
+            # Retrieve next movement command
             command: str = self.command_queue.get()
+            self.logger.debug("wait for movelock")
+            # Acquire lock first (needed for both moving, and snapping pictures)
             self.movement_lock.acquire()
             # STM32 Commands - Send straight to STM32
             stm32_prefixes = ("FS", "BS", "FW", "BW", "FL", "FR", "BL",
@@ -136,6 +137,7 @@ class RaspberryPi:
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
+
 
     def manual_command_loop(self):
         """
