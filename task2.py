@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import json
+import io
+import picamera
 import queue
+import signal
 import time
 from multiprocessing import Process, Manager
 from typing import Optional
@@ -233,6 +236,7 @@ class RaspberryPi:
                 
                 self.logger.info(f"self.ack_count: {self.ack_count}")
                 if self.ack_count == 3:
+                    # 1st obstacle is small obstacle
                     try:
                         self.near_flag.release()
                         self.logger.debug("First ACK received, robot reached first obstacle!")
@@ -248,6 +252,7 @@ class RaspberryPi:
                         # self.logger.info("No need to release near_flag")
                     
                 # if self.ack_count == 3:
+                    # 1st obstacle is large obstacle
                     except:
                         time.sleep(2)
                         self.logger.debug("First ACK received, robot finished first obstacle!")
@@ -322,107 +327,93 @@ class RaspberryPi:
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         
+        # capture an image
+        stream = io.Bytes.IO()
+        with picamera.PiCamera() as camera:
+            camera.start_preview()
+            camera.vflip = True # Vertical flip
+            camera.hflip = True # Horizontal flip
+            time.sleep(1)
+            camera.capture(stream,format='jpeg')
         
-        con_file    = "PiLCConfig9.txt"
-        Home_Files  = []
-        Home_Files.append(os.getlogin())
-        config_file = "/home/" + Home_Files[0]+ "/" + con_file
-
-        extns        = ['jpg','png','bmp','rgb','yuv420','raw']
-        shutters     = [-2000,-1600,-1250,-1000,-800,-640,-500,-400,-320,-288,-250,-240,-200,-160,-144,-125,-120,-100,-96,-80,-60,-50,-48,-40,-30,-25,-20,-15,-13,-10,-8,-6,-5,-4,-3,0.4,0.5,0.6,0.8,1,1.1,1.2,2,3,4,5,6,7,8,9,10,11,15,20,25,30,40,50,60,75,100,112,120,150,200,220,230,239,435]
-        meters       = ['centre','spot','average']
-        awbs         = ['off','auto','incandescent','tungsten','fluorescent','indoor','daylight','cloudy']
-        denoises     = ['off','cdn_off','cdn_fast','cdn_hq']
-
-        config = []
-        with open(config_file, "r") as file:
-            line = file.readline()
-            while line:
-                config.append(line.strip())
-                line = file.readline()
-            config = list(map(int,config))
-        mode        = config[0]
-        speed       = config[1]
-        gain        = config[2]
-        brightness  = config[3]
-        contrast    = config[4]
-        red         = config[6]
-        blue        = config[7]
-        ev          = config[8]
-        extn        = config[15]
-        saturation  = config[19]
-        meter       = config[20]
-        awb         = config[21]
-        sharpness   = config[22]
-        denoise     = config[23]
-        quality     = config[24]
+        self.logger.info("Image captured. Calling image-rec api...")
         
-        retry_count = 0
+        # call image-rec API endpoint
+        self.logger.debug("Requesting from image API")
+        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+        image_data = stream.getvalue()
+        response = requests.post(url, files={"file": (filename, image_data)})
+
+        if response.status_code != 200:
+            self.logger.error("Something went wrong when requesting image from image-rec API. Please try again")
+            return
         
-        while True:
+        results = json.loads(response.content)
         
-            retry_count += 1
-        
-            shutter = shutters[speed]
-            if shutter < 0:
-                shutter = abs(1/shutter)
-            sspeed = int(shutter * 1000000)
-            if (shutter * 1000000) - int(shutter * 1000000) > 0.5:
-                sspeed +=1
-                
-            rpistr = "libcamera-still -e " + extns[extn] + " -n -t 100 -o " + filename
-            rpistr += " --brightness " + str(brightness/100) + " --contrast " + str(contrast/100)
-            rpistr += " --shutter " + str(sspeed)
-            if ev != 0:
-                rpistr += " --ev " + str(ev)
-            if sspeed > 1000000 and mode == 0:
-                rpistr += " --gain " + str(gain) + " --immediate "
-            else:    
-                rpistr += " --gain " + str(gain)
-                if awb == 0:
-                    rpistr += " --awbgains " + str(red/10) + "," + str(blue/10)
-                else:
-                    rpistr += " --awb " + awbs[awb]
-            rpistr += " --metering " + meters[meter]
-            rpistr += " --saturation " + str(saturation/10)
-            rpistr += " --sharpness " + str(sharpness/10)
-            rpistr += " --quality " + str(quality)
-            rpistr += " --denoise "    + denoises[denoise]
-            rpistr += " --metadata - --metadata-format txt >> PiLibtext.txt"
-
-            os.system(rpistr)
-            
-            
-            self.logger.debug("Requesting from image API")
-            
-            response = requests.post(url, files={"file": (filename, open(filename,'rb'))})
-
-            if response.status_code != 200:
-                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-                return
-
-            results = json.loads(response.content)
-
-            # Higher brightness retry
-            
-            if results['image_id'] != 'NA' or retry_count > 6:
-                break
-            elif retry_count <= 2:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with same shutter speed...")
-            elif retry_count <= 4:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                speed -= 1
-            elif retry_count == 5:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                speed += 3
-            
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")
         return ans
 
+        # while True:
+        
+        #     retry_count += 1
+        
+        #     shutter = shutters[speed]
+        #     if shutter < 0:
+        #         shutter = abs(1/shutter)
+        #     sspeed = int(shutter * 1000000)
+        #     if (shutter * 1000000) - int(shutter * 1000000) > 0.5:
+        #         sspeed +=1
+                
+        #     rpistr = "libcamera-still -e " + extns[extn] + " -n -t 100 -o " + filename
+        #     rpistr += " --brightness " + str(brightness/100) + " --contrast " + str(contrast/100)
+        #     rpistr += " --shutter " + str(sspeed)
+        #     if ev != 0:
+        #         rpistr += " --ev " + str(ev)
+        #     if sspeed > 1000000 and mode == 0:
+        #         rpistr += " --gain " + str(gain) + " --immediate "
+        #     else:    
+        #         rpistr += " --gain " + str(gain)
+        #         if awb == 0:
+        #             rpistr += " --awbgains " + str(red/10) + "," + str(blue/10)
+        #         else:
+        #             rpistr += " --awb " + awbs[awb]
+        #     rpistr += " --metering " + meters[meter]
+        #     rpistr += " --saturation " + str(saturation/10)
+        #     rpistr += " --sharpness " + str(sharpness/10)
+        #     rpistr += " --quality " + str(quality)
+        #     rpistr += " --denoise "    + denoises[denoise]
+        #     rpistr += " --metadata - --metadata-format txt >> PiLibtext.txt"
+
+        #     os.system(rpistr)
+            
+            
+        #     self.logger.debug("Requesting from image API")
+            
+        #     response = requests.post(url, files={"file": (filename, open(filename,'rb'))})
+
+        #     if response.status_code != 200:
+        #         self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+        #         return
+
+        #     results = json.loads(response.content)
+
+        #     # Higher brightness retry
+            
+        #     if results['image_id'] != 'NA' or retry_count > 6:
+        #         break
+        #     elif retry_count <= 2:
+        #         self.logger.info(f"Image recognition results: {results}")
+        #         self.logger.info("Recapturing with same shutter speed...")
+        #     elif retry_count <= 4:
+        #         self.logger.info(f"Image recognition results: {results}")
+        #         self.logger.info("Recapturing with lower shutter speed...")
+        #         speed -= 1
+        #     elif retry_count == 5:
+        #         self.logger.info(f"Image recognition results: {results}")
+        #         self.logger.info("Recapturing with lower shutter speed...")
+        #         speed += 3
+            
     # have to check this function
     def request_stitch(self):
         url = f"http://{API_IP}:{API_PORT}/stitch"

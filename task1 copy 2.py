@@ -407,7 +407,7 @@ class RaspberryPi:
         
 
         if response.status_code != 200:
-            self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+            self.logger.error("Something went wrong when requesting image from image-rec API. Please try again.")
             #self.android_queue.put(AndroidMessage(
                 #"error", "Something went wrong when requesting path from image-rec API. Please try again."))
             return
