@@ -3,10 +3,10 @@ SERIAL_PORT = "/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Cont
 BAUD_RATE = 115200
 
 # API DETAILS
-API_IP = '192.168.21.49'  # IP address of laptop
+API_IP = '192.168.21.49'  # IP address of algo api
 API_PORT = 8000
-#API_IP ='192.168.21.68'
-#API_PORT = 5050
+# API_IP ='192.168.21.68' # IP address of img-recg api
+#API_PORT = 8000
 
 # ROBOT SETTINGS
 OUTDOOR_BIG_TURN = False

@@ -57,13 +57,7 @@ class RaspberryPi:
 
         self.proc_recv_stm32 = None
         self.proc_command_follower = None
-        # self.proc_rpi_action = None
         self.rs_flag = False
-        # self.success_obstacles = self.manager.list()
-        # self.failed_obstacles = self.manager.list()
-        # self.obstacles = self.manager.dict()
-        self.current_location = self.manager.dict()
-        # self.failed_attempt = False
 
     def start(self):
         """Starts the RPi orchestrator"""
@@ -84,6 +78,7 @@ class RaspberryPi:
             self.logger.info("Child Processes started")
 
             self.manual_command_loop()
+            
             ### Start up complete ###
         except KeyboardInterrupt:
             self.stop()
@@ -98,27 +93,16 @@ class RaspberryPi:
         [Child Process] Receive acknowledgement messages from STM32, and release the movement lock
         """
         while True:
-
             message: str = self.stm_link.recv()
             if message.startswith("ACK"):
                 try:
                     self.movement_lock.release()
                     self.logger.debug(
                         "ACK from STM32 received, movement lock released.")
-
-                    cur_location = self.path_queue.get_nowait()
-                    print(f"Current Location from path queue {cur_location}")
-                    self.current_location['x'] = cur_location['x']
-                    self.current_location['y'] = cur_location['y']
-                    self.current_location['d'] = cur_location['direction']
-                    self.logger.info(
-                        f"self.current_location = {self.current_location}")
-                  
+                    
                 except Exception as e:
                     #self.logger.warning("Tried to release a released lock!")
                     self.logger.error(e)
-                    if self.movement_lock.locked():
-                        self.movement_lock.release()
 
             else:
                 self.logger.warning(
@@ -142,31 +126,21 @@ class RaspberryPi:
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
 
+            print("awaiting next command")
+            self.manual_command_loop()
+
 
     def manual_command_loop(self):
         """
         Allows manual command input into STM32
         """
         print("Enter manual commands for the STM32. Type 'exit' to stop.")
-        command ='RS00'
-
-        while command.lower() != 'exit':
-            command = input("Command: ")
-            """
-            ### Sample commands 
-            Turning radius is 3x1
-            - 'FWx0': Move forward x units (x0cm)
-            - 'BWx0': Move backward x units (x0cm)
-            - 'FL90': Move to the forward-left location 
-            - 'FR00': Move to the forward-right location
-            - 'BL00': Move to the backward-left location 
-            - 'BR00': Move to the backward-right location  
-            ['FW40', 'FR90', 'FR30'] etc
-            """
-            if command.lower() == 'exit':
-                self.stop()
-                break
-            self.command_queue.put(command)
+        command = input('Command: ')
+        if command.lower() == 'exit':
+            print('stop')
+            self.stop()
+        else:
+           self.stm_link.send(command)
 
 if __name__ == "__main__":
     rpi = RaspberryPi()

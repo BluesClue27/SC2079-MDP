@@ -425,19 +425,11 @@ class RaspberryPi:
         self.logger.info(f"self.obstacles: {self.obstacles}")
         self.logger.info(
             f"Image recognition results: {results} ({SYMBOL_MAP.get(results['image_id'])})")
-
-        if results['image_id'] == 'NA':
-            self.failed_obstacles.append(
-                self.obstacles[int(results['obstacle_id'])])
-            self.logger.info(
-                f"Added Obstacle {results['obstacle_id']} to failed obstacles.")
-            self.logger.info(f"self.failed_obstacles: {self.failed_obstacles}")
-        else:
-            self.success_obstacles.append(
-                self.obstacles[int(results['obstacle_id'])])
-            self.logger.info(
-                f"self.success_obstacles: {self.success_obstacles}")
-        self.android_queue.put(AndroidMessage("image-rec", results))
+        # if (results['image_id']) == '10' or results['image_id'] == 'NA':
+        #     self.movement_lock.release()
+        #     return 
+        # else:
+        #     self.movement_lock.acquire()
 
     def request_algo(self, data, robot_x=1, robot_y=1, robot_dir=0, retrying=False):
         """
@@ -447,10 +439,10 @@ class RaspberryPi:
         self.logger.info("Requesting path from algo...")
         self.android_queue.put(AndroidMessage(
             "info", "Requesting path from algo..."))
-        self.logger.info(f"data: {data}")
+        self.logger.info(f"data: {data}")   
         body = {**data, "big_turn": "0", "robot_x": robot_x,
                 "robot_y": robot_y, "robot_dir": robot_dir, "retrying": retrying}
-        url = f"http://{API_IP}:{API_PORT}/compute"
+        url = f"http://{API_IP}:{API_PORT}/bullseye"
         response = requests.post(url, json=body)
 
         # Error encountered at the server, return early
