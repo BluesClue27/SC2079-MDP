@@ -99,7 +99,8 @@ class RaspberryPi:
                     self.movement_lock.release()
                     self.logger.debug(
                         "ACK from STM32 received, movement lock released.")
-                    
+                    self.unpause.set()
+
                 except Exception as e:
                     #self.logger.warning("Tried to release a released lock!")
                     self.logger.error(e)
@@ -126,8 +127,9 @@ class RaspberryPi:
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
 
-            print("awaiting next command")
-            self.manual_command_loop()
+            # Wait for unpause event before continuing
+            self.logger.debug("Waiting for unpause")
+            self.unpause.wait()
 
 
     def manual_command_loop(self):
@@ -135,12 +137,21 @@ class RaspberryPi:
         Allows manual command input into STM32
         """
         print("Enter manual commands for the STM32. Type 'exit' to stop.")
-        command = input('Command: ')
-        if command.lower() == 'exit':
-            print('stop')
-            self.stop()
-        else:
-           self.stm_link.send(command)
+        while True:
+            commands = input('Command: ')
+            if commands.lower() == 'exit':
+                print('stop')
+                self.stop()
+                break
+            else:
+                command_list = commands.split()
+                for command in command_list:
+                    if command == 'FIN':
+                        self.logger.info("FIN command received. Ending run")
+                        self.stop()
+                        return
+                    else:
+                            self.command_queue.put(command)
 
 if __name__ == "__main__":
     rpi = RaspberryPi()
