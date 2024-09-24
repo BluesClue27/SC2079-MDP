@@ -414,22 +414,21 @@ class RaspberryPi:
         
         results = json.loads(response.content)
 
+        self.logger.info(f"results: {results}")
+        self.logger.info(f"self.obstacles: {self.obstacles}")
+        self.logger.info(
+            f"Image recognition results: {results} ({SYMBOL_MAP.get(results['image_id'])})")
+        
+        if not (results['image_id'] == '10' or results['image_id'] == 'NA'):
+            self.stop()
+            return 
+
         # release lock so that bot can continue moving
         self.movement_lock.release()
         try:
            self.retrylock.release()
         except:
            pass
-
-        self.logger.info(f"results: {results}")
-        self.logger.info(f"self.obstacles: {self.obstacles}")
-        self.logger.info(
-            f"Image recognition results: {results} ({SYMBOL_MAP.get(results['image_id'])})")
-        # if (results['image_id']) == '10' or results['image_id'] == 'NA':
-        #     self.movement_lock.release()
-        #     return 
-        # else:
-        #     self.movement_lock.acquire()
 
     def request_algo(self, data, robot_x=1, robot_y=1, robot_dir=0, retrying=False):
         """
@@ -506,7 +505,7 @@ class RaspberryPi:
         # Check image recognition API
         url = f"http://{API_IP}:{API_PORT}/"
         try:
-            print('hi!')
+            print('hello')
             response = requests.get(url, timeout=1)
             if response.status_code == 200:
                 self.logger.debug("API is up!")

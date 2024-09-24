@@ -462,7 +462,9 @@ class RaspberryPi:
             return
 
         # Parse response
-        result = json.loads(response.content)['data']
+        res = json.loads(response.content)
+        print(res)
+        result = res['data']
         commands = result['commands']
         path = result['path']
 

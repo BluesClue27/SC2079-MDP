@@ -114,6 +114,7 @@ class RaspberryPi:
         """
         [Child Process] 
         """
+        count=0
         while True:
             # Retrieve next movement command
             command: str = self.command_queue.get()
@@ -126,11 +127,14 @@ class RaspberryPi:
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
+                count+=1
+                print(f"Turn count is: {count}")
 
             # Wait for unpause event before continuing
             self.logger.debug("Waiting for unpause")
             self.unpause.wait()
 
+        
 
     def manual_command_loop(self):
         """
