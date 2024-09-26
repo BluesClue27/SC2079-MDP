@@ -4,19 +4,13 @@
     <img src="/images/Group_21.jpg" alt="Logo" height=150 >
   </a>
   <h1 align="center">
-    CZ3004/SC2079 Multidisciplinary Project - Raspberry Pi
+    SC2079 Multidisciplinary Project - Raspberry Pi
   </h1>
 </p>
 
 # Overview
 
-2024 August Update: Someone sent me the slides from the briefing of this semester, this repository, along with my other MDP-related ones, are entirely STILL reusable as far as I can see. SCSE can become CCDS but MDP is still MDP. As usual, retrain the YOLO model (or use something more recent la). Once again, that is a 1-day thing. If you are using these repositories and you don't have a functioning, fully-integrated system by end of Week 4, reconsider your life choices and your peer evaluations.
-
-**2023 Semester 1 Update**: At least from what my juniors told me, this repository, along with my other MDP-related ones, are entirely reusuable. The only exception is that you will need to retrain the YOLO model since the fonts/colors were changed. That is a 1-day thing. If you are using these repositories and you don't have a functioning, fully-integrated system by end of Week 4, reconsider your life choices.
-
-Y'all, if you are using this code, which apparently a LOT of y'all are, at least star this repo leh
-
-This repository contains the code for the Raspberry Pi component of the CZ3004/SC2079 Multidisciplinary Project. The Raspberry Pi is responsible for the following:
+This repository contains the code for the Raspberry Pi component of the SC2079 Multidisciplinary Project. The Raspberry Pi is responsible for the following:
 
 - Communicating with the Android app via Bluetooth
 - Communicating with the Algorithm API via HTTP requests
@@ -154,19 +148,11 @@ The following are the possible commands related to movement. The commands will c
 
 `ACK` - Acknowledgement - Robot sends this message to acknowledge receipt and execution of a command
 
-# Camera Calibration
-
-Instead of using PiCamera which does not allow for finetuned calibration, I used LibCamera which allows for more control over the camera. I used the GUI from the following repository to calibrate the camera: [Pi_LibCamera_GUI](https://github.com/Gordon999/Pi_LIbCamera_GUI)
-<img src="/images/CalibrationGUI.png" alt= "Calibration GUI" width="700">
-Please follow the instructions there to calibrate the camera. I created different calibration config files for different scenarios such as indoors, outdoors, and harsh sunlight. As calibration will be different for each camera hardware, I did not include the config files in this repository.
-
-Since LibCamera is used to calibrate the camera, it is also used to capture the images with the given configuration file.
-
 # Setup
 
 1. Follow the guide provided on NTULearn first, to set up the Raspberry Pi properly. This includes turning it into a wireless access point, communicating with the STM32, and Android tablet. Make sure all connections with all the necessary components are working properly.
 
-2. Run either `Week_8.py` or `Week_9.py` depending on which task you are doing.
+2. Run either `task1.py` or `task2.py` depending on which task you are doing.
 
 # Disclaimer
 
@@ -174,14 +160,9 @@ I am not responsible for any errors, mishaps, or damages that may occur from usi
 
 # Acknowledgements
 
-I used Group 28's code as a boilerplate/baseline, but improved it and changed the workflow significantly. The communication has been slightly altered, but still largely follows the original design. Pi_LibCamera_GUI was used to calibrate the camera. The following are the links to their repositories:
+I heavily referenced pyesonekyaw's code, but made some modifications. I only worked on the RPi components and the links to the repositories for the other components are listeed as follows:
 
-- [Group 28](https://github.com/CZ3004-Group-28)
-- [Pi_LibCamera_GUI](https://github.com/Gordon999/Pi_LIbCamera_GUI)
-
-# Related Repositories
-
-- [Website](https://github.com/pyesonekyaw/MDP-Showcase)
-- [Algorithm](https://github.com/pyesonekyaw/CZ3004-SC2079-MDP-Algorithm)
-- [Simulator](https://github.com/pyesonekyaw/CZ3004-SC2079-MDP-Simulator)
-- [Image Recognition](https://github.com/pyesonekyaw/CZ3004-SC2079-MDP-ImageRecognition)
+- [pyesonekyaw](https://github.com/pyesonekyaw/CZ3004-SC2079-MDP-RaspberryPi)
+- [Algorithm BE](https://github.com/timothychangke/MDP_AlgorithmBE)
+- [Algorithm FE](https://github.com/timothychangke/MDP_AlgorithmFE)
+- [Android](https://github.com/xaynezz/MDP_Android)
