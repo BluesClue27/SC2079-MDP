@@ -160,7 +160,7 @@ I am not responsible for any errors, mishaps, or damages that may occur from usi
 
 # Acknowledgements
 
-I heavily referenced pyesonekyaw's code, but made some modifications. I only worked on the RPi components and the links to the repositories for the other components are listeed as follows:
+I heavily referenced pyesonekyaw's code, but made some modifications. I only worked on the RPi components and the links to the repositories for the other components are listed as follows:
 
 - [pyesonekyaw](https://github.com/pyesonekyaw/CZ3004-SC2079-MDP-RaspberryPi)
 - [Algorithm BE](https://github.com/timothychangke/MDP_AlgorithmBE)
