@@ -344,13 +344,13 @@ class RaspberryPi:
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         image_data = stream.getvalue()
-        response = requests.post(url, files={"file": (filename, image_data)})
         
         while True:
             retry_count = 0
 
             self.logger.debug("Requesting from image API")
 
+            response = requests.post(url, files={"file": (filename, image_data)})
             if response.status_code != 200:
                 self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
                 self.android_queue.put(AndroidMessage(
