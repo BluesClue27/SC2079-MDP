@@ -428,11 +428,14 @@ class RaspberryPi:
             elif retry_count <= 4:
                 self.logger.info(f"Image recognition results: {results}")
                 self.logger.info("Recapturing with lower shutter speed...")
-                # speed -= 1 # have to change this to suit our picamera
+                camera.brightness = 60
+                camera.contrast = 90
             elif retry_count == 5:
                 self.logger.info(f"Image recognition results: {results}")
                 self.logger.info("Recapturing with lower shutter speed...")
-                # speed += 3 # have to change this to suit our picamera
+                camera.brightness = 40
+                camera.contrast = 90
+                camera.framerate = 70
 
         # release lock so that bot can continue moving
         self.movement_lock.release()

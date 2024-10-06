@@ -383,6 +383,11 @@ class RaspberryPi:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
             camera.hflip = True  # Horizontal flip
+            # camera.iso = 100
+            # camera.shutter_speed = 200000
+            camera.brightness = 40
+            camera.contrast = 90
+            camera.framerate = 70
             time.sleep(1)
             camera.capture(stream,format='jpeg')
 

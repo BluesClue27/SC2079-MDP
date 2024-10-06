@@ -22,8 +22,10 @@ try:
     camera.iso = 100 # lower ISO for less noise, but require more light. Can use this setting for outdoor assessment
     camera.awb_mode = 'auto'  # Options: 'auto', 'sunlight', 'cloudy', 'shade', etc.
     # For manual AWB gains:
-    camera.awb_gains = (1.5, 1.2)  # Adjust the red and blue gain
 
+    camera.awb_gains = (1.5, 1.2)  # Adjust the red and blue gain
+    camera.shutter_speed = 500000
+    print(f"{camera.shutter_speed}")
 
     # Flip the camera (set both to True if you want to flip both horizontally and vertically)
     camera.vflip = True  # Vertical flip
@@ -54,7 +56,6 @@ try:
     camera.stop_preview()
 finally:
     camera.close()
-
 
 """
 ---------------------------------------------------------
