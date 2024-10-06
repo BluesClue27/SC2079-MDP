@@ -340,8 +340,6 @@ class RaspberryPi:
                     self.obstacles[obs["id"]] = obs
                 self.request_algo(action.value)
             elif action.cat == "snap":
-                # print("continued...")
-                # continue
                 self.snap_and_rec(obstacle_id_with_signal=action.value)
             elif action.cat == "stitch":
                 self.request_stitch()
@@ -390,7 +388,7 @@ class RaspberryPi:
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
-            camera.hflip = True
+            camera.hflip = True  # Horizontal flip
             time.sleep(1)
             camera.capture(stream,format='jpeg')
 

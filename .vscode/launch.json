@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "cppdbg",
+      "request": "launch",
+      "args": [],
+      "stopAtEntry": false,
+      "externalConsole": true,
+      "cwd": "c:/Users/randy/AppData/Local/Temp/d131944c-0a1e-4161-aac3-f6587e00e8fd_MDP_Kai.zip.8fd/MDP_Kai/MDP_STM/Core/Src",
+      "program": "c:/Users/randy/AppData/Local/Temp/d131944c-0a1e-4161-aac3-f6587e00e8fd_MDP_Kai.zip.8fd/MDP_Kai/MDP_STM/Core/Src/build/Debug/outDebug",
+      "MIMode": "gdb",
+      "miDebuggerPath": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import json
+import io
+import picamera
 import queue
+import signal
 import time
 from multiprocessing import Process, Manager
 from typing import Optional
@@ -311,18 +314,72 @@ class RaspberryPi:
             elif action.cat == "stitch": self.request_stitch()
 
     def snap_and_rec(self, obstacle_id: str) -> None:
+    #def snap_and_rec(self, obstacle_id_with_signal: str) -> None:
         """
         RPi snaps an image and calls the API for image-rec.
         The response is then forwarded back to the android
         :param obstacle_id: the current obstacle ID
         """
-        
+        # obstacle_id, signal = obstacle_id_with_signal.split("_")
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id}")
         signal = "C"
+
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+        #self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+
+        # capture an image
+        stream = io.BytesIO()
+        with picamera.PiCamera() as camera:
+            camera.start_preview()
+            camera.vflip = True  # Vertical flip
+            camera.hflip = True  # Horizontal flip
+            time.sleep(1)
+            camera.capture(stream,format='jpeg')
+
+        # Notify android
+        #self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+        self.logger.info("Image captured. Calling image-rec api...")
+
+        url = f"http://{API_IP}:{API_PORT}/image"
+        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+        image_data = stream.getvalue()
+        response = requests.post(url, files={"file": (filename, image_data)})
         
-        
+        while True:
+            retry_count = 0
+
+            self.logger.debug("Requesting from image API")
+
+            if response.status_code != 200:
+                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                #self.android_queue.put(AndroidMessage(
+                    #"error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                return
+            
+            results = json.loads(response.content)
+
+            """
+            Retrying image capturing again using different configurations
+            """
+            if results['image_id'] != 'NA' or retry_count > 6:
+                break
+            elif retry_count <= 2:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with same shutter speed...")
+            elif retry_count <= 4:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed -= 1 # have to change this to suit our picamera
+            elif retry_count == 5:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed += 3 # have to change this to suit our picamera
+
+        ans = SYMBOL_MAP.get(results['image_id'])
+        self.logger.info(f"Image recognition results: {results} ({ans})")
+        return ans
+        """
         con_file    = "PiLCConfig9.txt"
         Home_Files  = []
         Home_Files.append(os.getlogin())
@@ -392,7 +449,7 @@ class RaspberryPi:
 
             os.system(rpistr)
             
-            
+        
             self.logger.debug("Requesting from image API")
             
             response = requests.post(url, files={"file": (filename, open(filename,'rb'))})
@@ -418,12 +475,8 @@ class RaspberryPi:
                 self.logger.info(f"Image recognition results: {results}")
                 self.logger.info("Recapturing with lower shutter speed...")
                 speed += 3
-            
-        ans = SYMBOL_MAP.get(results['image_id'])
-        self.logger.info(f"Image recognition results: {results} ({ans})")
-        return ans
+        """   
 
-    # have to check this function
     def request_stitch(self):
         url = f"http://{API_IP}:{API_PORT}/stitch"
         response = requests.get(url)
