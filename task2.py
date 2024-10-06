@@ -326,7 +326,7 @@ class RaspberryPi:
 
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
-        #self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+        self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
         # capture an image
         stream = io.BytesIO()
@@ -338,7 +338,7 @@ class RaspberryPi:
             camera.capture(stream,format='jpeg')
 
         # Notify android
-        #self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+        self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
         self.logger.info("Image captured. Calling image-rec api...")
 
         url = f"http://{API_IP}:{API_PORT}/image"
@@ -353,14 +353,16 @@ class RaspberryPi:
 
             if response.status_code != 200:
                 self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-                #self.android_queue.put(AndroidMessage(
-                    #"error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                self.android_queue.put(AndroidMessage(
+                    "error", "Something went wrong when requesting path from image-rec API. Please try again."))
                 return
             
             results = json.loads(response.content)
 
             """
             Retrying image capturing again using different configurations
+            Maybe we won't use this retry feature in the task 2 since 
+            we want to clock the fastest time
             """
             if results['image_id'] != 'NA' or retry_count > 6:
                 break
@@ -375,6 +377,13 @@ class RaspberryPi:
                 self.logger.info(f"Image recognition results: {results}")
                 self.logger.info("Recapturing with lower shutter speed...")
                 # speed += 3 # have to change this to suit our picamera
+
+        # release lock so that bot can continue moving
+        self.movement_lock.release()
+        try:
+           self.retrylock.release()
+        except:
+           pass
 
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")

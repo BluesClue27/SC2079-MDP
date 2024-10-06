@@ -381,7 +381,7 @@ class RaspberryPi:
         obstacle_id, signal = obstacle_id_with_signal.split("_")
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id_with_signal}")
         # have to change obstacle_id to obstacle_id
-        #self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+        self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
         #capture an image
         stream = io.BytesIO()
@@ -393,7 +393,7 @@ class RaspberryPi:
             camera.capture(stream,format='jpeg')
 
         # notify android
-        #self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+        self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
         self.logger.info("Image captured. Calling image-rec api...")
 
         # call image-rec API endpoint
@@ -406,8 +406,8 @@ class RaspberryPi:
 
         if response.status_code != 200:
             self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-            #self.android_queue.put(AndroidMessage(
-                #"error", "Something went wrong when requesting path from image-rec API. Please try again."))
+            self.android_queue.put(AndroidMessage(
+                "error", "Something went wrong when requesting path from image-rec API. Please try again."))
             return
         
         results = json.loads(response.content)
