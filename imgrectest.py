@@ -369,53 +369,70 @@ class RaspberryPi:
         """
         RPi snaps an image and calls the API for image-rec.
         The response is then forwarded back to the android
-        :param obstacle_id: the current obstacle ID followed by underscore followed by signal
-        
-        ##############
-        Code to capture image and store temporarily before sending to image-rec API endpoint via http
-        ##############
+        :param obstacle_id_with_signal: the current obstacle ID followed by underscore followed by signal
         """
-
         # notify android
         obstacle_id, signal = obstacle_id_with_signal.split("_")
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id_with_signal}")
         # have to change obstacle_id to obstacle_id
-        #self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+        # self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
         #capture an image
         stream = io.BytesIO()
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
-            camera.hflip = True
+            camera.hflip = True  # Horizontal flip
             time.sleep(1)
             camera.capture(stream,format='jpeg')
 
         # notify android
-        #self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+        # self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
         self.logger.info("Image captured. Calling image-rec api...")
 
         # call image-rec API endpoint
-        self.logger.debug("Requesting from image API")
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         image_data = stream.getvalue()
-        response = requests.post(url, files={"file": (filename, image_data)})
-        
+        retry_count = 0
 
-        if response.status_code != 200:
-            self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-            #self.android_queue.put(AndroidMessage(
-                #"error", "Something went wrong when requesting path from image-rec API. Please try again."))
-            return
-        
-        results = json.loads(response.content)
+        while True:
+          
+            retry_count += 1
+            print(f"Retry Count: {retry_count}")
+            self.logger.debug("Requesting from image API")
+
+            response = requests.post(url, files={"file": (filename, image_data)})
+            if response.status_code != 200:
+                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                #self.android_queue.put(AndroidMessage(
+                    # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                return
+            
+            results = json.loads(response.content)
+
+            """
+            Retrying image capturing again using different configurations
+            """
+            if results['image_id'] != 'NA' or retry_count > 6:
+                break
+            elif retry_count <= 2:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with same shutter speed...")
+            elif retry_count <= 4:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed -= 1 # have to change this to suit our picamera
+            elif retry_count == 5:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed += 3 # have to change this to suit our picamera
 
         # release lock so that bot can continue moving
-        #self.movement_lock.release()
-        #try:
+        # self.movement_lock.release()
+        # try:
         #    self.retrylock.release()
-        #except:
+        # except:
         #    pass
 
         self.logger.info(f"results: {results}")
@@ -434,7 +451,7 @@ class RaspberryPi:
                 self.obstacles[int(results['obstacle_id'])])
             self.logger.info(
                 f"self.success_obstacles: {self.success_obstacles}")
-        #self.android_queue.put(AndroidMessage("image-rec", results))
+        # self.android_queue.put(AndroidMessage("image-rec", results))
 
     def request_algo(self, data, robot_x=1, robot_y=1, robot_dir=0, retrying=False):
         """

@@ -405,6 +405,7 @@ class RaspberryPi:
         while True:
           
             retry_count += 1
+            print(f"Retry Count: {retry_count}")
             self.logger.debug("Requesting from image API")
 
             response = requests.post(url, files={"file": (filename, image_data)})
