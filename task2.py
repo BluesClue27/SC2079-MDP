@@ -344,10 +344,11 @@ class RaspberryPi:
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         image_data = stream.getvalue()
-        
-        while True:
-            retry_count = 0
+        retry_count = 0
 
+        while True:
+
+            retry_count += 1    
             self.logger.debug("Requesting from image API")
 
             response = requests.post(url, files={"file": (filename, image_data)})

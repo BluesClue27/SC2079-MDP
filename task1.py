@@ -400,10 +400,11 @@ class RaspberryPi:
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         image_data = stream.getvalue()
+        retry_count = 0
 
         while True:
-            retry_count = 0
-
+          
+            retry_count += 1
             self.logger.debug("Requesting from image API")
 
             response = requests.post(url, files={"file": (filename, image_data)})
@@ -417,8 +418,6 @@ class RaspberryPi:
 
             """
             Retrying image capturing again using different configurations
-            Maybe we won't use this retry feature in the task 2 since 
-            we want to clock the fastest time
             """
             if results['image_id'] != 'NA' or retry_count > 6:
                 break
