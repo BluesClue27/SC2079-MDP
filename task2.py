@@ -380,10 +380,6 @@ class RaspberryPi:
 
         # release lock so that bot can continue moving
         self.movement_lock.release()
-        try:
-           self.retrylock.release()
-        except:
-           pass
 
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")

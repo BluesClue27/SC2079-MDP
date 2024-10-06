@@ -397,20 +397,42 @@ class RaspberryPi:
         self.logger.info("Image captured. Calling image-rec api...")
 
         # call image-rec API endpoint
-        self.logger.debug("Requesting from image API")
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         image_data = stream.getvalue()
-        response = requests.post(url, files={"file": (filename, image_data)})
-        
 
-        if response.status_code != 200:
-            self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-            self.android_queue.put(AndroidMessage(
-                "error", "Something went wrong when requesting path from image-rec API. Please try again."))
-            return
-        
-        results = json.loads(response.content)
+        while True:
+            retry_count = 0
+
+            self.logger.debug("Requesting from image API")
+
+            response = requests.post(url, files={"file": (filename, image_data)})
+            if response.status_code != 200:
+                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                self.android_queue.put(AndroidMessage(
+                    "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                return
+            
+            results = json.loads(response.content)
+
+            """
+            Retrying image capturing again using different configurations
+            Maybe we won't use this retry feature in the task 2 since 
+            we want to clock the fastest time
+            """
+            if results['image_id'] != 'NA' or retry_count > 6:
+                break
+            elif retry_count <= 2:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with same shutter speed...")
+            elif retry_count <= 4:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed -= 1 # have to change this to suit our picamera
+            elif retry_count == 5:
+                self.logger.info(f"Image recognition results: {results}")
+                self.logger.info("Recapturing with lower shutter speed...")
+                # speed += 3 # have to change this to suit our picamera
 
         # release lock so that bot can continue moving
         self.movement_lock.release()
