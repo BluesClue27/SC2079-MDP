@@ -189,33 +189,16 @@ class RaspberryPi:
 
                     self.clear_queues()
                     self.command_queue.put("RS00") # ack_count = 1
-                    
-                    # Small object direction detection
-                    self.small_direction = self.snap_and_rec("Small")
-                    self.logger.info(f"HERE small direction is: {self.small_direction}")
-                    if self.small_direction == "Left Arrow": 
-                        # OB01 sends command for the robot to move towards the obstacle
-                        # UL00 sends command for the robot to move around left of the obstacle
-                        self.command_queue.put("OB01") # ack_count = 3
-                        self.command_queue.put("UL00") # ack_count = 5
-                    elif self.small_direction == "Right Arrow":
-                        # OB01 sends command for the robot to move towards the obstacle
-                        # UR00 sends command for the robot to move around left of the obstacle
-                        self.command_queue.put("OB01") # ack_count = 3
-                        self.command_queue.put("UR00") # ack_count = 5
-
-                    elif self.small_direction == None or self.small_direction == 'None':
-                        self.logger.info("Acquiring near_flag log")
-                        self.near_flag.acquire()             
-                        
-                        self.command_queue.put("OB01") # ack_count = 3
-                        
 
                     self.logger.info("Start command received, starting robot on Week 9 task!")
                     self.android_queue.put(AndroidMessage('status', 'running'))
-
+                    self.android_queue.put(AndroidMessage('info','Clearing first obstacle...'))
                     # Commencing path following | Main trigger to start movement #
-                    self.unpause.set()
+                    self.unpause.set()                    
+
+                    # elif self.small_direction == None or self.small_direction == 'None':
+                    #     self.logger.info("Acquiring near_flag log")
+                    #     self.near_flag.acquire()             
                     
     def recv_stm(self) -> None:
         """
@@ -239,38 +222,50 @@ class RaspberryPi:
                 
                 
                 self.logger.info(f"self.ack_count: {self.ack_count}")
-                # ack_count == 3 because first ACK received from RS00, second ACK received from OB01, third ACK ???
-                if self.ack_count == 3:
-                    try:
-                        self.near_flag.release()
-                        self.logger.debug("First ACK received, robot reached first obstacle!")
-                        self.small_direction = self.snap_and_rec("Small_Near")
-                        if self.small_direction == "Left Arrow": 
-                            self.command_queue.put("UL00") # ack_count = 5
-                        elif self.small_direction == "Right Arrow":
-                            self.command_queue.put("UR00") # ack_count = 5
-                        else:
-                            self.command_queue.put("UL00") # ack_count = 5
-                            self.logger.debug("Failed first one, going left by default!")
-                    # except:
-                        # self.logger.info("No need to release near_flag")
-                    
-                # if self.ack_count == 3:
-                    except:
-                        time.sleep(2)
-                        self.logger.debug("First ACK received, robot finished first obstacle!")
-                        self.large_direction = self.snap_and_rec("Large")
-                        if self.large_direction == "Left Arrow": 
-                            self.command_queue.put("PL01") # ack_count = 6
-                        elif self.large_direction == "Right Arrow":
-                            self.command_queue.put("PR01") # ack_count = 6
-                        else:
-                            self.command_queue.put("PR01") # ack_count = 6
-                            self.logger.debug("Failed second one, going right by default!")
 
-                if self.ack_count == 6:
-                    self.logger.debug("Second ACK received from STM32!")
+                if self.ack_count == 1:
+                    # Moves forward until 30cm away from obstacle    
+                    self.command_queue.put("FWxx") # ack_count = 2    
+                elif self.ack_count == 2: # Robot has reached first obstacle
+                    self.small_direction = self.snap_and_rec("Small")
+                    self.logger.info(f"HERE small direction is {self.small_direction}")
+                    if self.small_direction == "Left Arrow":
+                        self.movement("SL00") # ack_count = 8    
+                    elif self.small_direction == "Right Arrow":
+                        self.movement("SR00") # ack_count = 8  
+                    else:
+                        self.movement("SL00") # ack_count = 8  
+                        self.logger.debug("Failed first one, going left by default!")
+                    # ack_count = 2 + 6 = 8 after these 6 commands
+
+                elif self.ack_count == 8:
+                    self.logger.info("First obstacle cleared!")
+                    self.logger.info("Moving towards second obstacle")
+
+                    # Moves forward until 30cm away from obstacle    
+                    self.command_queue.put("FWxx") # ack_count = 9
+                    
+                    self.android_queue.put(AndroidMessage('info','Clearing second obstacle...'))
+                    self.large_direction = self.snap_and_rec("Large")
+                    self.logger.info(f"HERE large direction is {self.large_direction}")
+                    if self.large_direction == "Left Arrow":
+                        self.movement("LL00") # ack_count = 16
+                    elif self.large_direction == "Right Arrow":
+                        self.movement("LR00") # ack_count = 16
+                    else:
+                        self.movement("LR00") # ack_count = 16
+                        self.logger.debug("Failed second one, going right by default!")
+                    # ack_count = 9 + 7 = 16 after these 7 commands
+
+                elif self.ack_count == 16:
+                    self.logger.debug("Second obstacle cleared!")
                     self.android_queue.put(AndroidMessage("status", "finished"))
+                    # go back to carpark
+                    self.movement("FIN") # ack_count = 20
+                    # ack_count = 16 + 4 = 20 after these 4 commands
+                
+                elif self.ack_count >= 20:
+                    # kill robot when in carpark
                     self.command_queue.put("FIN")
 
                 # except Exception:
@@ -297,7 +292,8 @@ class RaspberryPi:
             command: str = self.command_queue.get()
             self.unpause.wait()
             self.movement_lock.acquire()
-            stm32_prefixes = ("STOP", "ZZ", "UL", "UR", "PL", "PR", "RS", "OB")
+            stm32_prefixes = ("FS", "BS", "FW", "BW", "FL", "FR", "BL",
+                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS")
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
             elif command == "FIN":
@@ -423,6 +419,44 @@ class RaspberryPi:
         except Exception as e:
             self.logger.warning(f"API Exception: {e}")
             return False
+        
+    def movement(self,obstacle: str): 
+        """
+        Commands to move the robot
+        """
+        if obstacle == "SL00":
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            # ack_count = 2 + 6 = 8 after these 6 commands
+        elif obstacle == "SR00":
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            # ack_count = 2 + 6 = 8 after these 6 commands
+        elif obstacle == "LL00":
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FW40")
+            self.command_queue.put("FR90")
+            # ack_count = 9 + 7 = 16 after these 7 commands
+        elif obstacle == "LR00":
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FW40")
+            self.command_queue.put("FL90")
+            # ack_count = 9 + 7 = 16 after these 7 commands
+        elif obstacle == "FIN":
+            self.command_queue.put("FWxx")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FWxx")
+            self.command_queue.put("FIN")
+            # ack_count = 16 + 4 = 21 after these 5 commands
 
 if __name__ == "__main__":
     rpi = RaspberryPi()

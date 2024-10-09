@@ -58,6 +58,7 @@ class RaspberryPi:
         self.proc_recv_stm32 = None
         self.proc_command_follower = None
         self.rs_flag = False
+        self.ack_count = 0
 
     def start(self):
         """Starts the RPi orchestrator"""
@@ -95,6 +96,7 @@ class RaspberryPi:
         while True:
             message: str = self.stm_link.recv()
             if message.startswith("ACK"):
+                self.ack_count +=1
                 try:
                     self.movement_lock.release()
                     self.logger.debug(

@@ -133,10 +133,10 @@ The following are the possible commands related to movement. The commands will c
 ### Task 2 Commands
 
 `OB01` - Small Obstacle - Robot moves from starting position to obstacle and stops
-`UL00` - Go Around Left for Small Obstacle - Robot moves around obstacle to the left
-`UR00` - Go Around Right for Small Obstacle- Robot moves around obstacle to the right
-`PL01` - Go Around Left for Large Obstacle - Robot moves around obstacle to the left
-`PR01` - Go Around Right for Large Obstacle - Robot moves around obstacle to the right
+`SL00` - Go Around Left for Small Obstacle - Robot moves around obstacle to the left
+`SR00` - Go Around Right for Small Obstacle- Robot moves around obstacle to the right
+`LL00` - Go Around Left for Large Obstacle - Robot moves around obstacle to the left
+`LR00` - Go Around Right for Large Obstacle - Robot moves around obstacle to the right
 
 ### Misc Commands
 
