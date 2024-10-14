@@ -97,6 +97,7 @@ class RaspberryPi:
             message: str = self.stm_link.recv()
             if message.startswith("ACK"):
                 self.ack_count +=1
+                print(f"ACK count is: {self.ack_count}")
                 try:
                     self.movement_lock.release()
                     self.logger.debug(
@@ -116,7 +117,7 @@ class RaspberryPi:
         """
         [Child Process] 
         """
-        count=0
+        
         while True:
             # Retrieve next movement command
             command: str = self.command_queue.get()
@@ -125,12 +126,11 @@ class RaspberryPi:
             self.movement_lock.acquire()
             # STM32 Commands - Send straight to STM32
             stm32_prefixes = ("FS", "BS", "FW", "BW", "FL", "FR", "BL",
-                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS")
+                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS",
+                              "SL", "SR", "LL", "LR")
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
-                count+=1
-                print(f"Turn count is: {count}")
 
             # Wait for unpause event before continuing
             self.logger.debug("Waiting for unpause")

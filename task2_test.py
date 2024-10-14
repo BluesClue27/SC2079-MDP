@@ -225,47 +225,49 @@ class RaspberryPi:
 
                 if self.ack_count == 1:
                     # Moves forward until 30cm away from obstacle    
-                    self.command_queue.put("FWxx") # ack_count = 2    
-                elif self.ack_count == 2: # Robot has reached first obstacle
+                    self.command_queue.put("FW99") # ack_count = 2
+                elif self.ack_count == 2:
+                    # Ensures the robot is 30cm away from the obstacle by 
+                    # either moving back or forward
+                    self.command_queue.put("FW99") # ack_count = 3   
+                elif self.ack_count == 3: # Robot has reached first obstacle
                     self.small_direction = self.snap_and_rec("Small")
                     self.logger.info(f"HERE small direction is {self.small_direction}")
                     if self.small_direction == "Left Arrow":
-                        self.movement("SL00") # ack_count = 8    
+                        self.command_queue.put("SL00") # ack_count = 4   
                     elif self.small_direction == "Right Arrow":
-                        self.movement("SR00") # ack_count = 8  
+                        self.command_queue.put("SR00") # ack_count = 4  
                     else:
-                        self.movement("SL00") # ack_count = 8  
+                        self.command_queue.put("SL00") # ack_count = 4 
                         self.logger.debug("Failed first one, going left by default!")
-                    # ack_count = 2 + 6 = 8 after these 6 commands
 
-                elif self.ack_count == 8:
+                elif self.ack_count == 4:
                     self.logger.info("First obstacle cleared!")
                     self.logger.info("Moving towards second obstacle")
 
                     # Moves forward until 30cm away from obstacle    
-                    self.command_queue.put("FWxx") # ack_count = 9
-                    
+                    self.command_queue.put("FW98") # ack_count = 5
+                elif self.ack_count == 5:
                     self.android_queue.put(AndroidMessage('info','Clearing second obstacle...'))
                     self.large_direction = self.snap_and_rec("Large")
                     self.logger.info(f"HERE large direction is {self.large_direction}")
                     if self.large_direction == "Left Arrow":
-                        self.movement("LL00") # ack_count = 16
+                        self.command_queue("LL00") # ack_count = 6
                     elif self.large_direction == "Right Arrow":
-                        self.movement("LR00") # ack_count = 16
+                        self.command_queue("LR00") # ack_count = 6
                     else:
-                        self.movement("LR00") # ack_count = 16
+                        self.command_queue("LR00") # ack_count = 6
                         self.logger.debug("Failed second one, going right by default!")
                     # ack_count = 9 + 7 = 16 after these 7 commands
 
-                elif self.ack_count == 16:
+                elif self.ack_count == 6:
                     self.logger.debug("Second obstacle cleared!")
                     self.android_queue.put(AndroidMessage("status", "finished"))
                     # go back to carpark
-                    self.movement("FIN") # ack_count = 20
-                    # ack_count = 16 + 4 = 20 after these 4 commands
+                    self.command_queue.put("BK") # ack_count = 7
                 
-                elif self.ack_count >= 20:
-                    # kill robot when in carpark
+                elif self.ack_count >= 7:
+                    # kill robot when in carpark, stitch images together
                     self.command_queue.put("FIN")
 
                 # except Exception:
@@ -293,7 +295,8 @@ class RaspberryPi:
             self.unpause.wait()
             self.movement_lock.acquire()
             stm32_prefixes = ("FS", "BS", "FW", "BW", "FL", "FR", "BL",
-                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS")
+                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS",
+                              "SR", "SL", "LL", "LR", "BK")
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
             elif command == "FIN":

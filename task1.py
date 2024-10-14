@@ -295,6 +295,14 @@ class RaspberryPi:
 
             # End of path
             elif command == "FIN":
+                self.unpause.clear()
+                self.movement_lock.release()
+                self.logger.info("Commands queue finished.")
+                self.android_queue.put(AndroidMessage(
+                    "info", "Commands queue finished."))
+                self.android_queue.put(AndroidMessage("status", "finished"))
+                self.rpi_action_queue.put(PiAction(cat="stitch", value=""))
+                """
                 self.logger.info(
                     f"At FIN, self.failed_obstacles: {self.failed_obstacles}")
                 self.logger.info(
@@ -322,6 +330,7 @@ class RaspberryPi:
                     "info", "Commands queue finished."))
                 self.android_queue.put(AndroidMessage("status", "finished"))
                 self.rpi_action_queue.put(PiAction(cat="stitch", value=""))
+            """
             else:
                 raise Exception(f"Unknown command: {command}")
 
@@ -402,6 +411,17 @@ class RaspberryPi:
         image_data = stream.getvalue()
         retry_count = 0
 
+        self.logger.debug("Requesting from image API")
+
+        response = requests.post(url, files={"file": (filename, image_data)})
+        if response.status_code != 200:
+            self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+            self.android_queue.put(AndroidMessage(
+                "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+            return
+        
+        results = json.loads(response.content)
+        """
         while True:
           
             retry_count += 1
@@ -417,9 +437,9 @@ class RaspberryPi:
             
             results = json.loads(response.content)
 
-            """
+            
             Retrying image capturing again using different configurations
-            """
+            
             if results['image_id'] != 'NA' or retry_count > 6:
                 break
             elif retry_count <= 2:
@@ -436,6 +456,7 @@ class RaspberryPi:
                 camera.brightness = 40
                 camera.contrast = 90
                 camera.framerate = 70
+            """
 
         # release lock so that bot can continue moving
         self.movement_lock.release()
