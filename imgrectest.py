@@ -378,60 +378,64 @@ class RaspberryPi:
         # self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
         #capture an image
-        stream = io.BytesIO()
+        image_capture_count = 0
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
             camera.hflip = True  # Horizontal flip
             # camera.iso = 100
             # camera.shutter_speed = 200000
-            camera.brightness = 40
-            camera.contrast = 90
-            camera.framerate = 70
+            # camera.brightness = 40
+            # camera.contrast = 90
+            # camera.framerate = 70
             time.sleep(1)
-            camera.capture(stream,format='jpeg')
 
-        # notify android
-        # self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
-        self.logger.info("Image captured. Calling image-rec api...")
+            while True:
+                image_capture_count += 1
+                print(f"Image Capture Count: {image_capture_count}")
+                self.logger.debug("Requesting from image API")
 
-        # call image-rec API endpoint
-        url = f"http://{API_IP}:{API_PORT}/image"
-        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
-        image_data = stream.getvalue()
-        retry_count = 0
+                # notify android
+                # self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+                self.logger.info("Image captured. Calling image-rec api...")
 
-        while True:
-          
-            retry_count += 1
-            print(f"Retry Count: {retry_count}")
-            self.logger.debug("Requesting from image API")
+                # Reset the stream before capturing a new image
+                stream = io.BytesIO()
 
-            response = requests.post(url, files={"file": (filename, image_data)})
-            if response.status_code != 200:
-                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-                #self.android_queue.put(AndroidMessage(
-                    # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
-                return
-            
-            results = json.loads(response.content)
+                # call image-rec API endpoint
+                url = f"http://{API_IP}:{API_PORT}/image"
+                camera.capture(stream,format='jpeg')
+                image_data = stream.getvalue()
+                filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
 
-            """
-            Retrying image capturing again using different configurations
-            """
-            if results['image_id'] != 'NA' or retry_count > 6:
-                break
-            elif retry_count <= 2:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with same shutter speed...")
-            elif retry_count <= 4:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                # speed -= 1 # have to change this to suit our picamera
-            elif retry_count == 5:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                # speed += 3 # have to change this to suit our picamera
+                response = requests.post(url, files={"file": (filename, image_data)})
+                if response.status_code != 200:
+                    self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                    #self.android_queue.put(AndroidMessage(
+                        # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                    return
+                
+                results = json.loads(response.content)
+
+                """
+                Retrying image capturing again using different configurations
+                """
+                if results['image_id'] != 'NA' or image_capture_count > 6:
+                    break
+                elif image_capture_count <= 2:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with same shutter speed...")
+                elif image_capture_count <= 4:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with higher brightness...")
+                    camera.brightness = 60
+                    camera.contrast = 90
+                elif image_capture_count == 5:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with lower brightness...")
+                    camera.brightness = 30
+                    camera.contrast = 100
+                    camera.framerate = 70
 
         # release lock so that bot can continue moving
         # self.movement_lock.release()

@@ -327,10 +327,71 @@ class RaspberryPi:
         # obstacle_id, signal = obstacle_id_with_signal.split("_")
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id}")
         signal = "C"
+        self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
+        image_capture_count = 0
+        with picamera.PiCamera() as camera:
+            camera.start_preview()
+            camera.vflip = True  # Vertical flip
+            camera.hflip = True  # Horizontal flip
+            time.sleep(1)
+
+            while True: 
+                image_capture_count += 1
+                print(f"Image Capture Count: {image_capture_count}")
+                self.logger.debug("Requesting from image API")
+                
+                # Reset the stream before capturing a new image
+                stream = io.BytesIO()
+
+                # call image-rec API endpoint
+                url = f"http://{API_IP}:{API_PORT}/image"
+                camera.capture(stream,format='jpeg')
+                image_data = stream.getvalue()
+                filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+
+                # notify android
+                self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+                self.logger.info("Image captured. Calling image-rec api...")
+                response = requests.post(url, files={"file": (filename, image_data)})
+                if response.status_code != 200:
+                    self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                    self.android_queue.put(AndroidMessage(
+                        "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                    return
+                
+                results = json.loads(response.content)
+
+                """
+                Retrying image capturing again using different configurations
+                """
+                if results['image_id'] != 'NA' or image_capture_count > 6:
+                    break
+                elif image_capture_count <= 2:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with same shutter speed...")
+                elif image_capture_count <= 4:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with higher brightness...")
+                    camera.brightness = 60
+                    camera.contrast = 90
+                elif image_capture_count == 5:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with lower brightness...")
+                    camera.brightness = 30
+                    camera.contrast = 100
+                    camera.framerate = 70
+            
+        self.movement_lock.release()
+
+        ans = SYMBOL_MAP.get(results['image_id'])
+        self.logger.info(f"Image recognition results: {results} ({ans})")
+        return ans
+    
+    """
         url = f"http://{API_IP}:{API_PORT}/image"
         filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
-        self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+        
 
         # capture an image
         stream = io.BytesIO()
@@ -365,11 +426,11 @@ class RaspberryPi:
             
             results = json.loads(response.content)
 
-            """
+            
             Retrying image capturing again using different configurations
             Maybe we won't use this retry feature in the task 2 since 
             we want to clock the fastest time
-            """
+            
             if results['image_id'] != 'NA' or retry_count > 6:
                 break
             elif retry_count <= 2:
@@ -393,6 +454,7 @@ class RaspberryPi:
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")
         return ans
+    """
 
     def request_stitch(self):
         url = f"http://{API_IP}:{API_PORT}/stitch"
