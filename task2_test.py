@@ -113,6 +113,10 @@ class RaspberryPi:
         except KeyboardInterrupt:
             self.stop()
 
+        except Exception as e:
+            self.logger.error(f"An error occurred in the start process: {str(e)}")
+            self.stop()  
+
     def stop(self):
         """Stops all processes on the RPi and disconnects gracefully with Android and STM32"""
         self.android_link.disconnect()
