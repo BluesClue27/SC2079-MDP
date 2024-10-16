@@ -115,6 +115,10 @@ class RaspberryPi:
         except KeyboardInterrupt:
             self.stop()
 
+        except Exception as e:
+            self.logger.error(f"An error occurred in the start process: {str(e)}")
+            self.stop()
+
     def stop(self):
         """Stops all processes on the RPi and disconnects gracefully with Android and STM32"""
         self.android_link.disconnect()
@@ -198,10 +202,7 @@ class RaspberryPi:
         """
         [Child Process] Receive acknowledgement messages from STM32, and release the movement lock
         """
-        i=0
         while True:
-            print(f"run: {i}")
-            i+=1
             message: str = self.stm_link.recv()
             if message.startswith("ACK"):
                 if self.rs_flag == False:
@@ -259,6 +260,7 @@ class RaspberryPi:
         """
         [Child Process] 
         """
+        instruction = 0
         while True:
             # Retrieve next movement command
             command: str = self.command_queue.get()
@@ -281,6 +283,8 @@ class RaspberryPi:
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
                 self.logger.debug(f"Sending to STM32: {command}")
+                self.logger.info(f"Command: {command}; instruction number: {instruction}")
+                instruction+=1
 
             # Snap command
             elif command.startswith("SNAP"):
@@ -394,6 +398,7 @@ class RaspberryPi:
 
         #capture an image
         image_capture_count = 0
+        start = time.time()
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
@@ -429,17 +434,17 @@ class RaspberryPi:
                 """
                 Retrying image capturing again using different configurations
                 """
-                if results['image_id'] != 'NA' or image_capture_count > 6:
+                if results['image_id'] != 'NA' or image_capture_count > 2:
                     break
-                elif image_capture_count <= 2:
+                elif image_capture_count <= 0: # 1st try
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with same shutter speed...")
-                elif image_capture_count <= 4:
+                elif image_capture_count <= 1: # 2nd try
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with higher brightness...")
                     camera.brightness = 60
                     camera.contrast = 90
-                elif image_capture_count == 5:
+                elif image_capture_count == 2: # 3rd try
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with lower brightness...")
                     camera.brightness = 30
@@ -469,7 +474,11 @@ class RaspberryPi:
                 self.obstacles[int(results['obstacle_id'])])
             self.logger.info(
                 f"self.success_obstacles: {self.success_obstacles}")
-        self.android_queue.put(AndroidMessage("image-rec", results))        
+        self.android_queue.put(AndroidMessage("image-rec", results))   
+
+        time_taken = time.time() - start
+        # Print total time taken to 1dp
+        print(f"Total time taken: {round(time_taken,1)}")     
 
     def request_algo(self, data, robot_x=1, robot_y=1, robot_dir=0, retrying=False):
         """
@@ -478,7 +487,7 @@ class RaspberryPi:
         """
         self.logger.info("Requesting path from algo...")
         self.android_queue.put(AndroidMessage(
-            "info", "Requesting path from algo..."))
+            "info", "Requesting path from algo...")) 
         self.logger.info(f"data: {data}")
         body = {**data, "big_turn": "0", "robot_x": robot_x,
                 "robot_y": robot_y, "robot_dir": robot_dir, "retrying": retrying}

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import json
+import asyncio
 import io
 import picamera
 import queue
 import time
 from multiprocessing import Process, Manager
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 import os
 import requests
@@ -56,6 +58,7 @@ class RaspberryPi:
         self.unpause = self.manager.Event()
 
         self.movement_lock = self.manager.Lock()
+        self.camera_lock = self.manager.Lock()
 
         self.android_queue = self.manager.Queue()  # Messages to send to Android
         # Messages that need to be processed by RPi
@@ -379,6 +382,7 @@ class RaspberryPi:
 
         #capture an image
         image_capture_count = 0
+        start= time.time()
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
@@ -420,23 +424,134 @@ class RaspberryPi:
                 """
                 Retrying image capturing again using different configurations
                 """
-                if results['image_id'] != 'NA' or image_capture_count > 6:
+                if results['image_id'] != 'NA' or image_capture_count > 2:
                     break
-                elif image_capture_count <= 2:
+                elif image_capture_count <= 0:
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with same shutter speed...")
-                elif image_capture_count <= 4:
+                elif image_capture_count <= 1:
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with higher brightness...")
                     camera.brightness = 60
                     camera.contrast = 90
-                elif image_capture_count == 5:
+                elif image_capture_count == 2:
                     self.logger.info(f"Image recognition results: {results}")
                     self.logger.info("Recapturing with lower brightness...")
                     camera.brightness = 30
                     camera.contrast = 100
                     camera.framerate = 70
 
+        time_taken = time.time() - start
+        # Print total time taken to 1dp
+        print(f"Total time taken: {round(time_taken,1)}")
+
+        # release lock so that bot can continue moving
+        # self.movement_lock.release()
+        # try:
+        #    self.retrylock.release()
+        # except:
+        #    pass
+
+        self.logger.info(f"results: {results}")
+        self.logger.info(f"self.obstacles: {self.obstacles}")
+        self.logger.info(
+            f"Image recognition results: {results} ({SYMBOL_MAP.get(results['image_id'])})")
+
+        if results['image_id'] == 'NA':
+            self.failed_obstacles.append(
+                self.obstacles[int(results['obstacle_id'])])
+            self.logger.info(
+                f"Added Obstacle {results['obstacle_id']} to failed obstacles.")
+            self.logger.info(f"self.failed_obstacles: {self.failed_obstacles}")
+        else:
+            self.success_obstacles.append(
+                self.obstacles[int(results['obstacle_id'])])
+            self.logger.info(
+                f"self.success_obstacles: {self.success_obstacles}")
+        # self.android_queue.put(AndroidMessage("image-rec", results))
+
+    def snap_one_time(self, camera, brightness, contrast, framerate, obstacle_id, signal) -> None:
+        self.logger.debug(f"Requesting from image API with brightness {brightness}, contrast {contrast}, framerate {framerate}")
+        if brightness:
+            camera.brightness = brightness
+        if contrast:
+            camera.contrast = contrast
+        if framerate:
+            camera.framerate = framerate
+
+        # notify android
+        # self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+        self.logger.info("Image captured. Calling image-rec api...")
+
+        # Reset the stream before capturing a new image
+        stream = io.BytesIO()
+
+        # call image-rec API endpoint
+        url = f"http://{API_IP}:{API_PORT}/image"
+        self.camera_lock.acquire()
+        camera.capture(stream,format='jpeg')
+        self.camera_lock.release()
+        image_data = stream.getvalue()
+        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+
+        response = requests.post(url, files={"file": (filename, image_data)})
+        if response.status_code != 200:
+            self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+            #self.android_queue.put(AndroidMessage(
+                # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+            return
+        
+        results = json.loads(response.content)
+         
+        return results    
+
+    def snap_many_times(self, camera, obstacle_id, signal) -> None:
+        retries = [(None, None, None), 
+             (None, None, None), 
+             (None, None, None), 
+             (60, 90, None),
+             (60, 90, None),
+             (30, 100, 70),
+             (30, 100, 70),
+            ]
+        with ThreadPoolExecutor() as executor:
+                futures = {executor.submit(self.snap_one_time, camera, t[0], t[1], t[2], obstacle_id, signal) for t in retries}
+                for future in as_completed(futures):
+                    task_res = future.result()
+                    if task_res['image_id'] != "NA":
+                        return task_res
+                return None
+
+    def snap_and_rec_new(self, obstacle_id_with_signal: str) -> None:
+        """
+        RPi snaps an image and calls the API for image-rec.
+        The response is then forwarded back to the android
+        :param obstacle_id_with_signal: the current obstacle ID followed by underscore followed by signal
+        """
+        # notify android
+        obstacle_id, signal = obstacle_id_with_signal.split("_")
+        self.logger.info(f"Capturing image for obstacle id: {obstacle_id_with_signal}")
+        # have to change obstacle_id to obstacle_id
+        # self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+
+        #capture an image
+        start= time.time()
+        with picamera.PiCamera() as camera:
+            camera.start_preview()
+            camera.vflip = True  # Vertical flip
+            camera.hflip = True  # Horizontal flip
+            # camera.iso = 100
+            # camera.shutter_speed = 200000
+            # camera.brightness = 40
+            # camera.contrast = 90
+            # camera.framerate = 70
+            time.sleep(1)
+            results = self.snap_many_times(camera, obstacle_id, signal)
+    
+        time_taken = time.time() - start
+        # Print total time taken to 1dp
+        print(f"Total time taken: {round(time_taken,1)}")
+        
         # release lock so that bot can continue moving
         # self.movement_lock.release()
         # try:

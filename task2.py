@@ -389,7 +389,7 @@ class RaspberryPi:
                 camera.framerate = 70
 
         # release lock so that bot can continue moving
-        self.movement_lock.release()
+        # self.movement_lock.release()
 
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")
