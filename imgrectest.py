@@ -383,6 +383,11 @@ class RaspberryPi:
         #capture an image
         image_capture_count = 0
         start= time.time()
+
+        stream1: bytes = None
+        stream2: bytes = None
+        stream3: bytes = None
+
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
@@ -404,12 +409,206 @@ class RaspberryPi:
                 self.logger.info("Image captured. Calling image-rec api...")
 
                 # Reset the stream before capturing a new image
-                stream = io.BytesIO()
+                url = f"http://{API_IP}:{API_PORT}/image"
+                if image_capture_count == 3:
+                    response = requests.post(url+"2", files={"file": (filename, stream1)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+
+                elif image_capture_count == 4:
+                    response = requests.post(url+"2", files={"file": (filename, stream2)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+                
+                elif image_capture_count == 5:
+                    response = requests.post(url+"2", files={"file": (filename, stream3)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+
+                elif image_capture_count == 6:
+                    response = requests.post(url+"3", files={"file": (filename, stream1)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+                
+                elif image_capture_count == 7:
+                    response = requests.post(url+"3", files={"file": (filename, stream2)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+                
+                elif image_capture_count == 8:
+                    response = requests.post(url+"3", files={"file": (filename, stream3)})
+                    if response.status_code != 200:
+                        self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                        #self.android_queue.put(AndroidMessage(
+                            # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                        return
+                    results = json.loads(response.content)
+                    if results['image_id'] != 'NA':
+                        break
+
 
                 # call image-rec API endpoint
-                url = f"http://{API_IP}:{API_PORT}/image"
+                stream = io.BytesIO()
                 camera.capture(stream,format='jpeg')
                 image_data = stream.getvalue()
+                if image_capture_count == 0:
+                    stream1 = image_data
+                elif image_capture_count == 1:
+                    stream2 = image_data
+                elif image_capture_count == 2:
+                    stream3 = image_data
+                filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
+
+                response = requests.post(url, files={"file": (filename, image_data)})
+                if response.status_code != 200:
+                    self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                    #self.android_queue.put(AndroidMessage(
+                        # "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                    return
+                
+                results = json.loads(response.content)
+
+                """
+                Retrying image capturing again using different configurations
+                """
+                if results['image_id'] != 'NA' or image_capture_count > 8:
+                    break
+                elif image_capture_count <= 0:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with same shutter speed...")
+                elif image_capture_count <= 1:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with higher brightness...")
+                    camera.brightness = 60
+                    camera.contrast = 90
+                elif image_capture_count == 2:
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with lower brightness...")
+                    camera.brightness = 30
+                    camera.contrast = 100
+                    camera.framerate = 70
+
+        time_taken = time.time() - start
+        # Print total time taken to 1dp
+        print(f"Total time taken: {round(time_taken,1)}")
+
+        # release lock so that bot can continue moving
+        # self.movement_lock.release()
+        # try:
+        #    self.retrylock.release()
+        # except:
+        #    pass
+
+        self.logger.info(f"results: {results}")
+        self.logger.info(f"self.obstacles: {self.obstacles}")
+        self.logger.info(
+            f"Image recognition results: {results} ({SYMBOL_MAP.get(results['image_id'])})")
+
+        if results['image_id'] == 'NA':
+            self.failed_obstacles.append(
+                self.obstacles[int(results['obstacle_id'])])
+            self.logger.info(
+                f"Added Obstacle {results['obstacle_id']} to failed obstacles.")
+            self.logger.info(f"self.failed_obstacles: {self.failed_obstacles}")
+        else:
+            self.success_obstacles.append(
+                self.obstacles[int(results['obstacle_id'])])
+            self.logger.info(
+                f"self.success_obstacles: {self.success_obstacles}")
+        # self.android_queue.put(AndroidMessage("image-rec", results))
+
+    def snap_and_rec_new2(self, obstacle_id_with_signal: str) -> None:
+        """
+        RPi snaps an image and calls the API for image-rec.
+        The response is then forwarded back to the android
+        :param obstacle_id_with_signal: the current obstacle ID followed by underscore followed by signal
+        """
+        # notify android
+        obstacle_id, signal = obstacle_id_with_signal.split("_")
+        self.logger.info(f"Capturing image for obstacle id: {obstacle_id_with_signal}")
+        # have to change obstacle_id to obstacle_id
+        # self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
+
+        #capture an image
+        image_capture_count = 0
+        start= time.time()
+        with picamera.PiCamera() as camera:
+            camera.start_preview()
+            camera.vflip = True  # Vertical flip
+            camera.hflip = True  # Horizontal flip
+            # camera.iso = 100
+            # camera.shutter_speed = 200000
+            # camera.brightness = 40
+            # camera.contrast = 90
+            # camera.framerate = 70
+            time.sleep(1)
+
+            stream1 = io.BytesIO()
+            stream2 = io.BytesIO()
+            stream3 = io.BytesIO()
+    
+            while True:
+                self.logger.debug("Requesting from image API")
+
+                # notify android
+                # self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+                self.logger.info("Image captured. Calling image-rec api...")
+
+                # Reset the stream before capturing a new image
+
+            
+                return_flag = False
+                while not return_flag:
+                    # First image with default settings
+                    camera.capture(stream1, format='jpeg')
+                    imagedata_1 = stream1.getvalue()
+
+                    while results['image_id'] != 'NA':
+                        url = f"http://{API_IP}:{API_PORT}/image{model_number}"
+                    # Second image with increased brightness and contrast
+                    camera.brightness = 60
+                    camera.contrast = 90
+                    camera.capture(stream2, format='jpeg')
+                    imagedata_2 = stream2.getvalue()
+
+                    # Third image with decreased brightness and contrast
+                    camera.brightness = 30
+                    camera.contrast = 100
+                    camera.capture(stream3, format='jpeg')
+                    imagedata_3 = stream3.getvalue()
+
+                # call image-rec API endpoint
+                url = f"http://{API_IP}:{API_PORT}/image{model_number}"
                 filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
 
                 response = requests.post(url, files={"file": (filename, image_data)})

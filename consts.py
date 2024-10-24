@@ -29,6 +29,6 @@ SYMBOL_MAP = {
     "37": "Down Arrow",
     "38": "Right Arrow",
     "39": "Left Arrow",
-    "40": "Stop",
+    "40": "Dot",
     "NA": "None"
 }

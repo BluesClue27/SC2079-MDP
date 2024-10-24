@@ -112,6 +112,11 @@ class RaspberryPi:
 
         except KeyboardInterrupt:
             self.stop()
+        
+        except Exception as e:
+            self.logger.error(f"An error occurred in the start process: {str(e)}")
+            self.stop()
+
 
     def stop(self):
         """Stops all processes on the RPi and disconnects gracefully with Android and STM32"""
@@ -189,33 +194,16 @@ class RaspberryPi:
 
                     self.clear_queues()
                     self.command_queue.put("RS00") # ack_count = 1
-                    
-                    # Small object direction detection
-                    self.small_direction = self.snap_and_rec("Small")
-                    self.logger.info(f"HERE small direction is: {self.small_direction}")
-                    if self.small_direction == "Left Arrow": 
-                        # OB01 sends command for the robot to move towards the obstacle
-                        # UL00 sends command for the robot to move around left of the obstacle
-                        self.command_queue.put("OB01") # ack_count = 3
-                        self.command_queue.put("UL00") # ack_count = 5
-                    elif self.small_direction == "Right Arrow":
-                        # OB01 sends command for the robot to move towards the obstacle
-                        # UR00 sends command for the robot to move around left of the obstacle
-                        self.command_queue.put("OB01") # ack_count = 3
-                        self.command_queue.put("UR00") # ack_count = 5
-
-                    elif self.small_direction == None or self.small_direction == 'None':
-                        self.logger.info("Acquiring near_flag log")
-                        self.near_flag.acquire()             
-                        
-                        self.command_queue.put("OB01") # ack_count = 3
-                        
 
                     self.logger.info("Start command received, starting robot on Week 9 task!")
                     self.android_queue.put(AndroidMessage('status', 'running'))
-
+                    self.android_queue.put(AndroidMessage('info','Clearing first obstacle...'))
                     # Commencing path following | Main trigger to start movement #
-                    self.unpause.set()
+                    self.unpause.set()                    
+
+                    # elif self.small_direction == None or self.small_direction == 'None':
+                    #     self.logger.info("Acquiring near_flag log")
+                    #     self.near_flag.acquire()             
                     
     def recv_stm(self) -> None:
         """
@@ -236,41 +224,59 @@ class RaspberryPi:
                     self.logger.warning("Tried to release a released lock!")
 
                 self.logger.debug(f"ACK from STM32 received, ACK count now:{self.ack_count}")
-                
-                
-                self.logger.info(f"self.ack_count: {self.ack_count}")
-                # ack_count == 3 because first ACK received from RS00, second ACK received from OB01, third ACK ???
-                if self.ack_count == 3:
-                    try:
-                        self.near_flag.release()
-                        self.logger.debug("First ACK received, robot reached first obstacle!")
-                        self.small_direction = self.snap_and_rec("Small_Near")
-                        if self.small_direction == "Left Arrow": 
-                            self.command_queue.put("UL00") # ack_count = 5
-                        elif self.small_direction == "Right Arrow":
-                            self.command_queue.put("UR00") # ack_count = 5
-                        else:
-                            self.command_queue.put("UL00") # ack_count = 5
-                            self.logger.debug("Failed first one, going left by default!")
-                    # except:
-                        # self.logger.info("No need to release near_flag")
-                    
-                # if self.ack_count == 3:
-                    except:
-                        time.sleep(2)
-                        self.logger.debug("First ACK received, robot finished first obstacle!")
-                        self.large_direction = self.snap_and_rec("Large")
-                        if self.large_direction == "Left Arrow": 
-                            self.command_queue.put("PL01") # ack_count = 6
-                        elif self.large_direction == "Right Arrow":
-                            self.command_queue.put("PR01") # ack_count = 6
-                        else:
-                            self.command_queue.put("PR01") # ack_count = 6
-                            self.logger.debug("Failed second one, going right by default!")
 
-                if self.ack_count == 6:
-                    self.logger.debug("Second ACK received from STM32!")
+                if self.ack_count == 1:
+                    # Moves forward 40cm 
+                    self.command_queue.put("FW40") # ack_count = 1            
+                elif self.ack_count == 2:
+                    # Ensures the robot is 40cm away from the obstacle by 
+                    # either moving back or forward
+                    self.command_queue.put("FW99") # ack_count = 2 
+                # elif self.ack_count == 3:
+                #     self.command_queue.put("FW99")
+                elif self.ack_count == 3: # Robot has reached first obstacle
+                    self.small_direction = self.snap_and_rec("Small")
+                    self.logger.info(f"HERE small direction is {self.small_direction}")
+                    if self.small_direction == "Left Arrow":
+                        self.command_queue.put("SL00") # ack_count = 3   
+                    elif self.small_direction == "Right Arrow":
+                        self.command_queue.put("SR00") # ack_count = 3  
+                    else:
+                        self.command_queue.put("SL00") # ack_count = 3 
+                        self.logger.debug("Failed first one, going left by default!")
+
+                elif self.ack_count == 4:
+                    self.logger.info("First obstacle cleared!")
+                    self.logger.info("Moving towards second obstacle")
+
+                    # Moves forward until 35cm away from obstacle    
+                    self.command_queue.put("BW10") # ack_count = 5
+                elif self.ack_count == 5:
+                    self.command_queue.put("FW98") # ack_count = 6
+                elif self.ack_count == 6:
+                    self.android_queue.put(AndroidMessage('info','Clearing second obstacle...'))
+                    self.large_direction = self.snap_and_rec("Large")
+                    self.logger.info(f"HERE large direction is {self.large_direction}")
+                    if self.large_direction == "Left Arrow":
+                        self.command_queue.put("LL00") # ack_count = 7
+                    elif self.large_direction == "Right Arrow":
+                        self.command_queue.put("LR00") # ack_count = 7
+                    else:
+                        self.command_queue.put("LR00") # ack_count = 7
+                        self.logger.debug("Failed second one, going left by default!")
+
+                elif self.ack_count == 7:
+                    self.logger.debug("Second obstacle cleared!")
                     self.android_queue.put(AndroidMessage("status", "finished"))
+                    # Move forward until robot is inside carpark
+                    # self.command_queue.put("FW40") 
+                    self.command_queue.put("FW99") # ack_count = 8
+                elif self.ack_count == 8:
+                    self.command_queue.put("FW05") # ack_count = 9
+                elif self.ack_count == 9:   
+                    # kill robot when in carpark, stitch images together
+                    self.command_queue.put("FIN") # ack_count = 10
+                elif self.ack_count >=9:
                     self.command_queue.put("FIN")
 
                 # except Exception:
@@ -297,7 +303,9 @@ class RaspberryPi:
             command: str = self.command_queue.get()
             self.unpause.wait()
             self.movement_lock.acquire()
-            stm32_prefixes = ("STOP", "ZZ", "UL", "UR", "PL", "PR", "RS", "OB")
+            stm32_prefixes = ("FS", "BS", "FW", "BW", "FL", "FR", "BL",
+                              "BR", "TL", "TR", "A", "C", "DT", "STOP", "ZZ", "RS",
+                              "SR", "SL", "LL", "LR", "BK")
             if command.startswith(stm32_prefixes):
                 self.stm_link.send(command)
             elif command == "FIN":
@@ -328,68 +336,65 @@ class RaspberryPi:
         # obstacle_id, signal = obstacle_id_with_signal.split("_")
         self.logger.info(f"Capturing image for obstacle id: {obstacle_id}")
         signal = "C"
-
-        url = f"http://{API_IP}:{API_PORT}/image"
-        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
         self.android_queue.put(AndroidMessage("info", f"Capturing image for obstacle id: {obstacle_id}"))
 
-        # capture an image
-        stream = io.BytesIO()
+        image_capture_count = 0
+        start = time.time()
         with picamera.PiCamera() as camera:
             camera.start_preview()
             camera.vflip = True  # Vertical flip
             camera.hflip = True  # Horizontal flip
-            time.sleep(1)
-            camera.capture(stream,format='jpeg')
+            # time.sleep(1)
 
-        # Notify android
-        self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
-        self.logger.info("Image captured. Calling image-rec api...")
+            while True: 
+                image_capture_count += 1
+                print(f"Image Capture Count: {image_capture_count}")
+                self.logger.debug("Requesting from image API")
+                
+                # Reset the stream before capturing a new image
+                stream = io.BytesIO()
 
-        url = f"http://{API_IP}:{API_PORT}/image"
-        filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
-        image_data = stream.getvalue()
-        retry_count = 0
+                # call image-rec API endpoint
+                url = f"http://{API_IP}:{API_PORT}/image"
+                camera.capture(stream,format='jpeg')
+                image_data = stream.getvalue()
+                filename = f"{int(time.time())}_{obstacle_id}_{signal}.jpg"
 
-        while True:
+                # notify android
+                self.android_queue.put(AndroidMessage("info", "Image captured. Calling image-rec api..."))
+                self.logger.info("Image captured. Calling image-rec api...")
+                response = requests.post(url, files={"file": (filename, image_data)})
+                if response.status_code != 200:
+                    self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
+                    self.android_queue.put(AndroidMessage(
+                        "error", "Something went wrong when requesting path from image-rec API. Please try again."))
+                    return
+                
+                results = json.loads(response.content)
 
-            retry_count += 1   
-            print(f"Retry Count: {retry_count}")     
-            self.logger.debug("Requesting from image API")
+                """
+                Retrying image capturing again using different configurations
+                """
+                if results['image_id'] != 'NA' or results['image_id'] !='Bullseye' or image_capture_count > 2:
+                    break
+                elif image_capture_count <= 0: # 1st try
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with same shutter speed...")
+                elif image_capture_count <= 1: # 2nd try
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with higher brightness...")
+                    camera.brightness = 60
+                    camera.contrast = 90
+                elif image_capture_count == 2: # 3rd try
+                    self.logger.info(f"Image recognition results: {results}")
+                    self.logger.info("Recapturing with lower brightness...")
+                    camera.brightness = 30
+                    camera.contrast = 100
+                    camera.framerate = 70
 
-            response = requests.post(url, files={"file": (filename, image_data)})
-            if response.status_code != 200:
-                self.logger.error("Something went wrong when requesting path from image-rec API. Please try again.")
-                self.android_queue.put(AndroidMessage(
-                    "error", "Something went wrong when requesting path from image-rec API. Please try again."))
-                return
-            
-            results = json.loads(response.content)
-
-            """
-            Retrying image capturing again using different configurations
-            Maybe we won't use this retry feature in the task 2 since 
-            we want to clock the fastest time
-            """
-            if results['image_id'] != 'NA' or retry_count > 6:
-                break
-            elif retry_count <= 2:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with same shutter speed...")
-            elif retry_count <= 4:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                camera.brightness = 60
-                camera.contrast = 90
-            elif retry_count == 5:
-                self.logger.info(f"Image recognition results: {results}")
-                self.logger.info("Recapturing with lower shutter speed...")
-                camera.brightness = 40
-                camera.contrast = 90
-                camera.framerate = 70
-
-        # release lock so that bot can continue moving
-        # self.movement_lock.release()
+        time_taken = time.time() - start
+        # Print total time taken to 1dp
+        print(f"Total time taken: {round(time_taken,1)}")  
 
         ans = SYMBOL_MAP.get(results['image_id'])
         self.logger.info(f"Image recognition results: {results} ({ans})")
@@ -408,11 +413,11 @@ class RaspberryPi:
             self.command_queue.get()
 
     def check_api(self) -> bool:
-        url = f"http://{API_IP}:{API_PORT}/status"
+        url = f"http://{API_IP}:{API_PORT}/"
         try:
             response = requests.get(url, timeout=1)
             if response.status_code == 200:
-                self.logger.debug("API is up!")
+                self.logger.info("API is up!")
                 return True
         except ConnectionError:
             self.logger.warning("API Connection Error")
@@ -423,6 +428,44 @@ class RaspberryPi:
         except Exception as e:
             self.logger.warning(f"API Exception: {e}")
             return False
+        
+    def movement(self,obstacle: str): 
+        """
+        Commands to move the robot
+        """
+        if obstacle == "SL00":
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            # ack_count = 2 + 6 = 8 after these 6 commands
+        elif obstacle == "SR00":
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            # ack_count = 2 + 6 = 8 after these 6 commands
+        elif obstacle == "LL00":
+            self.command_queue.put("FL90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FW40")
+            self.command_queue.put("FR90")
+            # ack_count = 9 + 7 = 16 after these 7 commands
+        elif obstacle == "LR00":
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FW40")
+            self.command_queue.put("FL90")
+            # ack_count = 9 + 7 = 16 after these 7 commands
+        elif obstacle == "FIN":
+            self.command_queue.put("FWxx")
+            self.command_queue.put("FR90")
+            self.command_queue.put("FL90")
+            self.command_queue.put("FWxx")
+            self.command_queue.put("FIN")
+            # ack_count = 16 + 4 = 21 after these 5 commands
 
 if __name__ == "__main__":
     rpi = RaspberryPi()
